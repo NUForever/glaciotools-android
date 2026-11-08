@@ -37,6 +37,7 @@ object SensorErrors {
         6 -> "HDC1080 returned an incomplete reading"
         7 -> "DS18B20 probe missing, bus busy or bad CRC"
         8 -> "Flash memory did not accept a record"
+        9 -> "HC-SR04P: fewer than 3 echoes came back"
         else -> "Unknown error code $code"
     }
 

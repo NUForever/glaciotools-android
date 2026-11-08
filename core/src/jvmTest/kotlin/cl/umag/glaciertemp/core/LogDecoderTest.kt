@@ -50,4 +50,17 @@ class LogDecoderTest {
         assertEquals(java.time.LocalDateTime.of(2026, 10, 7, 12, 0, 1, 142_000_000), r[1].time)
         assertEquals(listOf(1.5, 12.34, 56.0, -0.12), r[0].values)
     }
+
+    @Test fun `un log con distancia la lee en cm tras las sondas`() {
+        // Version 4: CONT + Dist. Volt, DS0, Dist; el segundo registro con Dist invalida.
+        val sig = 0x4011
+        val rec = LogFormat.recordBytes(sig)
+        assertEquals(12, rec)
+        val d = java.nio.ByteBuffer.allocate(rec * 2).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        d.putInt(844689600).putShort(0).putShort(3300).putShort(-250).putShort(187)
+        d.putInt(844689601).putShort(0).putShort(3300).putShort(-251).putShort(-32768)
+        val r = LogDecoder.decode(d.array(), sig)
+        assertEquals(listOf(3.3, -2.5, 187.0), r[0].values)
+        assertEquals(listOf(3.3, -2.51, null), r[1].values)
+    }
 }

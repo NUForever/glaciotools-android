@@ -37,6 +37,7 @@ object CsvImporter {
     fun signatureFromHeader(names: List<String>): Int? {
         var sig = LogFormat.FORMAT_VERSION shl 12
         var ds = 0
+        var dist = false
         // La columna de tiempo corregido no es un canal: describe la MISMA magnitud que
         // Time. Si contara para el signature, un fichero exportado con ella marcada no se
         // podria volver a abrir, y el error diria "columna desconocida" sin mas pistas.
@@ -45,6 +46,8 @@ object CsvImporter {
             when {
                 bit != null -> sig = sig or bit
                 n.startsWith("DS") && n.drop(2).toIntOrNull() != null -> ds++
+                // Dist no tiene bit propio: va en la version de formato (3, o 4 con CONT).
+                n == "Dist" && !dist -> dist = true
                 else -> return null
             }
         }
@@ -52,6 +55,7 @@ object CsvImporter {
             if (ds > 8) return null
             sig = sig or LogFormat.DS_BIT or ((ds - 1) shl LogFormat.DS_SHIFT)
         }
+        if (dist) sig = (sig and 0x0FFF) or (LogFormat.FORMAT_DIST shl 12)
         return sig
     }
 
@@ -76,7 +80,7 @@ object CsvImporter {
         val correctedAt = header.indexOfFirst { it.equals(TimeCorrection.COLUMN, ignoreCase = true) }
         val names = header.drop(1).filter { !it.equals(TimeCorrection.COLUMN, ignoreCase = true) }
         val signature = signatureFromHeader(names) ?: throw CsvFormatException(
-            "Unknown column: ${names.first { it !in BY_NAME && !it.startsWith("DS") }}")
+            "Unknown column: ${names.firstOrNull { it !in BY_NAME && !it.startsWith("DS") && it != "Dist" } ?: "Dist (repeated)"}")
 
         // El signature codifica QUE canales hay, no en que orden se escribieron. Si el
         // orden del fichero no es el que produce el firmware, las columnas se leerian
@@ -117,7 +121,8 @@ object CsvImporter {
         if (records.isEmpty()) {
             throw CsvFormatException("No data rows could be read")
         }
-        val sig = if (conMs) (signature and 0x0FFF) or (LogFormat.FORMAT_CONT shl 12) else signature
+        val cont = if (LogFormat.hasDist(signature)) LogFormat.FORMAT_CONT_DIST else LogFormat.FORMAT_CONT
+        val sig = if (conMs) (signature and 0x0FFF) or (cont shl 12) else signature
         return LoadedLog(sig, records, skipped)
     }
 }

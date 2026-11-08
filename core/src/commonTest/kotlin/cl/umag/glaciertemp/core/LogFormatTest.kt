@@ -75,7 +75,30 @@ class LogFormatTest {
 
     @Test
     fun `una version desconocida no se da por legible`() {
-        assertFalse(LogFormat.isSupported(0x300F))
+        assertFalse(LogFormat.isSupported(0x500F))
         assertFalse(LogFormat.isSupported(0xFFFF))
+    }
+
+    @Test
+    fun `las versiones 3 y 4 agregan Dist tras las sondas y antes de los analogicos`() {
+        // 0x3??? = 0x1??? + Dist; 0x4??? = 0x2??? (CONT) + Dist.
+        assertTrue(LogFormat.isSupported(0x341F))
+        assertTrue(LogFormat.hasDist(0x341F))
+        assertFalse(LogFormat.hasMillis(0x341F))
+        assertEquals(listOf("Volt", "Temp", "RH", "HAtemp", "DS0", "DS1", "DS2", "Dist"),
+            LogFormat.fields(0x341F).map { it.name })
+        assertEquals(LogFormat.recordBytes(0x141F) + 2, LogFormat.recordBytes(0x341F))
+        val names = LogFormat.fields(0x301F or 0x0020).map { it.name }
+        assertTrue(names.indexOf("Dist") < names.indexOf("A0"))
+
+        assertTrue(LogFormat.isSupported(0x400F))
+        assertTrue(LogFormat.hasDist(0x400F))
+        assertTrue(LogFormat.hasMillis(0x400F))
+        assertEquals(LogFormat.recordBytes(0x200F) + 2, LogFormat.recordBytes(0x400F))
+        assertFalse(LogFormat.hasDist(0x200F))
+        assertFalse(LogFormat.hasDist(0x100F))
+
+        assertEquals("cm", LogFormat.unitOf("Dist"))
+        assertEquals("Distance (HC-SR04P ultrasonic)", LogFormat.channelDescription("Dist"))
     }
 }

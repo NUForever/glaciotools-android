@@ -34,6 +34,7 @@ class SensorErrorsTest {
         for (c in 1..4) assertTrue(SensorErrors.describe(c).startsWith("TMP119"))
         for (c in 5..6) assertTrue(SensorErrors.describe(c).startsWith("HDC1080"))
         assertTrue(SensorErrors.describe(7).startsWith("DS18B20"))
-        assertTrue(SensorErrors.describe(9).contains("9"))
+        assertTrue(SensorErrors.describe(9).startsWith("HC-SR04P"))
+        assertTrue(SensorErrors.describe(10).contains("10"))
     }
 }

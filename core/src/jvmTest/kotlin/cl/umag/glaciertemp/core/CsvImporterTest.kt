@@ -17,7 +17,7 @@ class CsvImporterTest {
     fun `exportar e importar devuelve exactamente lo mismo`() {
         // La prueba que de verdad importa: el importador es la inversa del exportador. Si
         // alguna vez dejan de serlo, un CSV guardado hoy no se podra abrir manana.
-        for (sig in listOf(0x100F, 0x101F, 0x141F, 0x1E1F, 0x11FF)) {
+        for (sig in listOf(0x100F, 0x101F, 0x141F, 0x1E1F, 0x11FF, 0x341F, 0x302F)) {
             val original = sample(sig)
             val loaded = CsvImporter.parse(CsvExporter.export(original, sig))
             assertEquals(sig, loaded.signature, "signature distinto para 0x%04X".format(sig))
@@ -34,6 +34,10 @@ class CsvImporterTest {
             listOf("Volt", "Temp", "RH", "HAtemp", "DS0")))
         assertEquals(0x141F, CsvImporter.signatureFromHeader(
             listOf("Volt", "Temp", "RH", "HAtemp", "DS0", "DS1", "DS2")))
+        // Dist no tiene bit: sube la version a 3.
+        assertEquals(0x341F, CsvImporter.signatureFromHeader(
+            listOf("Volt", "Temp", "RH", "HAtemp", "DS0", "DS1", "DS2", "Dist")))
+        assertNull(CsvImporter.signatureFromHeader(listOf("Volt", "Dist", "Dist")))
     }
 
     @Test
@@ -126,5 +130,14 @@ class CsvImporterTest {
     fun `sin milisegundos sigue siendo la version 1`() {
         val log = CsvImporter.parse("Time,Volt\n2026-01-01 00:00:00,1.50\n")
         assertEquals(0x1001, log.signature)
+    }
+
+    @Test
+    fun `un log de CONT con distancia vuelve como version 4`() {
+        val csv = "Time,Volt,Dist\n2026-01-01 00:00:00.250,1.50,123\n"
+        val log = CsvImporter.parse(csv)
+        assertEquals(0x4001, log.signature)
+        assertEquals(listOf(1.5, 123.0), log.records.single().values)
+        assertEquals(0x3001, CsvImporter.parse("Time,Volt,Dist\n2026-01-01 00:00:00,1.50,123\n").signature)
     }
 }

@@ -39,17 +39,30 @@ object LogFormat {
      */
     const val FORMAT_CONT = 2
 
+    /**
+     * Versiones con sensor de distancia HC-SR04P (firmware 3.17): un int16 "Dist" en cm detras
+     * de las sondas DS18B20 y antes de los analogicos. Los 16 bits del signature ya estaban
+     * todos ocupados, asi que el canal se codifica en la version: 3 = normal + Dist,
+     * 4 = CONT + Dist. Un lector anterior se niega a leerlo en vez de desalinear los campos.
+     */
+    const val FORMAT_DIST = 3
+    const val FORMAT_CONT_DIST = 4
+
     /** Bytes de la marca de tiempo de un log v2: segundos y milisegundos. */
     const val TIMESTAMP_BYTES_CONT = 6
 
     fun formatVersion(signature: Int): Int = (signature ushr 12) and 0x0F
 
     /** Si esta app sabe leer un log con esta firma. Cualquier otra version, no. */
-    fun isSupported(signature: Int): Boolean =
-        formatVersion(signature) == FORMAT_VERSION || formatVersion(signature) == FORMAT_CONT
+    fun isSupported(signature: Int): Boolean = formatVersion(signature) in FORMAT_VERSION..FORMAT_CONT_DIST
 
     /** Si los registros llevan milisegundos (log de CONT). */
-    fun hasMillis(signature: Int): Boolean = formatVersion(signature) == FORMAT_CONT
+    fun hasMillis(signature: Int): Boolean =
+        formatVersion(signature).let { it == FORMAT_CONT || it == FORMAT_CONT_DIST }
+
+    /** Si los registros llevan la distancia del HC-SR04P. */
+    fun hasDist(signature: Int): Boolean =
+        formatVersion(signature).let { it == FORMAT_DIST || it == FORMAT_CONT_DIST }
 
     /** Bytes de la marca de tiempo de cada registro. */
     fun timestampBytes(signature: Int): Int =
@@ -63,6 +76,7 @@ object LogFormat {
     fun fields(signature: Int): List<Field> = buildList {
         CHANNELS.forEach { (_, bit, f) -> if (signature and bit != 0) add(f) }
         repeat(dsCount(signature)) { add(Field("DS$it", 100.0, 2)) }
+        if (hasDist(signature)) add(Field("Dist", 1.0, 0))
         ANALOG.forEach { (name, bit) -> if (signature and bit != 0) add(Field(name, 1000.0, 3)) }
     }
 
@@ -76,6 +90,7 @@ object LogFormat {
         name == "RH" -> "Relative humidity (HDC1080)"
         name == "HAtemp" -> "High-accuracy temperature (TMP119)"
         name.startsWith("DS") -> "Probe ${name.drop(2)} temperature (DS18B20)"
+        name == "Dist" -> "Distance (HC-SR04P ultrasonic)"
         name.startsWith("A") -> "Analog input $name"
         else -> name
     }
@@ -103,6 +118,7 @@ object LogFormat {
         name == "RH" -> "%"
         name == "Temp" || name == "HAtemp" -> "°C"
         name.startsWith("DS") -> "°C"
+        name == "Dist" -> "cm"
         // Los canales analogicos se guardan en mV con escala 1000: son voltios.
         name.startsWith("A") -> "V"
         else -> ""
