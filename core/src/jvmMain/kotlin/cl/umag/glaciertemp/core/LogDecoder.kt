@@ -33,6 +33,9 @@ object LogDecoder {
                     // La humedad nunca es negativa: cualquier valor negativo es una lectura
                     // fallida, lo que ademas cubre el centinela -1 del firmware antiguo.
                     if (raw == LogFormat.INVALID || (f.name == "RH" && raw < 0)) null
+                    // Escala < 1 (Dist en cm de v3/v4 -> mm): multiplicar por 10 es exacto;
+                    // dividir por 0.1 no (3 / 0.1 = 30.000000000000004).
+                    else if (f.scale < 1.0) raw * Math.round(1.0 / f.scale).toDouble()
                     else raw / f.scale
                 }
                 val ms = if (conMs) readU16LE(data, off + 4).toLong() else 0L

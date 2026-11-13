@@ -40,7 +40,7 @@ object LogFormat {
     const val FORMAT_CONT = 2
 
     /**
-     * Versiones con sensor de distancia HC-SR04P (firmware 3.17): un int16 "Dist" en cm detras
+     * Versiones con sensor de distancia HC-SR04P (firmware 3.17): un int16 "Dist" (cm; mm desde la version 5) detras
      * de las sondas DS18B20 y antes de los analogicos. Los 16 bits del signature ya estaban
      * todos ocupados, asi que el canal se codifica en la version: 3 = normal + Dist,
      * 4 = CONT + Dist. Un lector anterior se niega a leerlo en vez de desalinear los campos.
@@ -48,20 +48,32 @@ object LogFormat {
     const val FORMAT_DIST = 3
     const val FORMAT_CONT_DIST = 4
 
+    /**
+     * Las mismas, con la distancia en mm (firmware 3.19, media recortada de 5 pings):
+     * 5 = normal + Dist, 6 = CONT + Dist. Las 3 y 4 (cm) se siguen leyendo y se pasan a mm,
+     * para que la columna Dist sea siempre mm.
+     */
+    const val FORMAT_DIST_MM = 5
+    const val FORMAT_CONT_DIST_MM = 6
+
     /** Bytes de la marca de tiempo de un log v2: segundos y milisegundos. */
     const val TIMESTAMP_BYTES_CONT = 6
 
     fun formatVersion(signature: Int): Int = (signature ushr 12) and 0x0F
 
     /** Si esta app sabe leer un log con esta firma. Cualquier otra version, no. */
-    fun isSupported(signature: Int): Boolean = formatVersion(signature) in FORMAT_VERSION..FORMAT_CONT_DIST
+    fun isSupported(signature: Int): Boolean = formatVersion(signature) in FORMAT_VERSION..FORMAT_CONT_DIST_MM
 
     /** Si los registros llevan milisegundos (log de CONT). */
     fun hasMillis(signature: Int): Boolean =
-        formatVersion(signature).let { it == FORMAT_CONT || it == FORMAT_CONT_DIST }
+        formatVersion(signature).let { it == FORMAT_CONT || it == FORMAT_CONT_DIST || it == FORMAT_CONT_DIST_MM }
 
     /** Si los registros llevan la distancia del HC-SR04P. */
     fun hasDist(signature: Int): Boolean =
+        formatVersion(signature) in FORMAT_DIST..FORMAT_CONT_DIST_MM
+
+    /** Si la distancia esta grabada en cm (versiones 3 y 4, firmware 3.17-3.18). */
+    fun distInCm(signature: Int): Boolean =
         formatVersion(signature).let { it == FORMAT_DIST || it == FORMAT_CONT_DIST }
 
     /** Bytes de la marca de tiempo de cada registro. */
@@ -76,7 +88,8 @@ object LogFormat {
     fun fields(signature: Int): List<Field> = buildList {
         CHANNELS.forEach { (_, bit, f) -> if (signature and bit != 0) add(f) }
         repeat(dsCount(signature)) { add(Field("DS$it", 100.0, 2)) }
-        if (hasDist(signature)) add(Field("Dist", 1.0, 0))
+        // Siempre en mm: un valor en cm (v3/v4) se divide por la escala 0.1, o sea x10.
+        if (hasDist(signature)) add(Field("Dist", if (distInCm(signature)) 0.1 else 1.0, 0))
         ANALOG.forEach { (name, bit) -> if (signature and bit != 0) add(Field(name, 1000.0, 3)) }
     }
 
@@ -118,7 +131,7 @@ object LogFormat {
         name == "RH" -> "%"
         name == "Temp" || name == "HAtemp" -> "°C"
         name.startsWith("DS") -> "°C"
-        name == "Dist" -> "cm"
+        name == "Dist" -> "mm"
         // Los canales analogicos se guardan en mV con escala 1000: son voltios.
         name.startsWith("A") -> "V"
         else -> ""

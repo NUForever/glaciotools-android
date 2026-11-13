@@ -51,16 +51,24 @@ class LogDecoderTest {
         assertEquals(listOf(1.5, 12.34, 56.0, -0.12), r[0].values)
     }
 
-    @Test fun `un log con distancia la lee en cm tras las sondas`() {
-        // Version 4: CONT + Dist. Volt, DS0, Dist; el segundo registro con Dist invalida.
-        val sig = 0x4011
+    @Test fun `un log con distancia la lee en mm tras las sondas`() {
+        // Version 6: CONT + Dist en mm. Volt, DS0, Dist; el segundo registro con Dist invalida.
+        val sig = 0x6011
         val rec = LogFormat.recordBytes(sig)
         assertEquals(12, rec)
         val d = java.nio.ByteBuffer.allocate(rec * 2).order(java.nio.ByteOrder.LITTLE_ENDIAN)
-        d.putInt(844689600).putShort(0).putShort(3300).putShort(-250).putShort(187)
+        d.putInt(844689600).putShort(0).putShort(3300).putShort(-250).putShort(1874)
         d.putInt(844689601).putShort(0).putShort(3300).putShort(-251).putShort(-32768)
         val r = LogDecoder.decode(d.array(), sig)
-        assertEquals(listOf(3.3, -2.5, 187.0), r[0].values)
+        assertEquals(listOf(3.3, -2.5, 1874.0), r[0].values)
         assertEquals(listOf(3.3, -2.51, null), r[1].values)
+    }
+
+    @Test fun `un log antiguo con distancia en cm se pasa a mm`() {
+        // Version 3 (firmware 3.17-3.18): Dist en cm; la columna sale siempre en mm.
+        val sig = 0x3001
+        val d = java.nio.ByteBuffer.allocate(LogFormat.recordBytes(sig)).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        d.putInt(844689600).putShort(3300).putShort(187)
+        assertEquals(listOf(3.3, 1870.0), LogDecoder.decode(d.array(), sig)[0].values)
     }
 }

@@ -46,7 +46,7 @@ object CsvImporter {
             when {
                 bit != null -> sig = sig or bit
                 n.startsWith("DS") && n.drop(2).toIntOrNull() != null -> ds++
-                // Dist no tiene bit propio: va en la version de formato (3, o 4 con CONT).
+                // Dist no tiene bit propio: va en la version de formato (5, o 6 con CONT; en mm).
                 n == "Dist" && !dist -> dist = true
                 else -> return null
             }
@@ -55,7 +55,7 @@ object CsvImporter {
             if (ds > 8) return null
             sig = sig or LogFormat.DS_BIT or ((ds - 1) shl LogFormat.DS_SHIFT)
         }
-        if (dist) sig = (sig and 0x0FFF) or (LogFormat.FORMAT_DIST shl 12)
+        if (dist) sig = (sig and 0x0FFF) or (LogFormat.FORMAT_DIST_MM shl 12)
         return sig
     }
 
@@ -121,7 +121,7 @@ object CsvImporter {
         if (records.isEmpty()) {
             throw CsvFormatException("No data rows could be read")
         }
-        val cont = if (LogFormat.hasDist(signature)) LogFormat.FORMAT_CONT_DIST else LogFormat.FORMAT_CONT
+        val cont = if (LogFormat.hasDist(signature)) LogFormat.FORMAT_CONT_DIST_MM else LogFormat.FORMAT_CONT
         val sig = if (conMs) (signature and 0x0FFF) or (cont shl 12) else signature
         return LoadedLog(sig, records, skipped)
     }

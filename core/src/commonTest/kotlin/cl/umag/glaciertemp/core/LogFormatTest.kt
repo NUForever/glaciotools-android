@@ -75,7 +75,7 @@ class LogFormatTest {
 
     @Test
     fun `una version desconocida no se da por legible`() {
-        assertFalse(LogFormat.isSupported(0x500F))
+        assertFalse(LogFormat.isSupported(0x700F))
         assertFalse(LogFormat.isSupported(0xFFFF))
     }
 
@@ -98,7 +98,13 @@ class LogFormatTest {
         assertFalse(LogFormat.hasDist(0x200F))
         assertFalse(LogFormat.hasDist(0x100F))
 
-        assertEquals("cm", LogFormat.unitOf("Dist"))
+        assertEquals("mm", LogFormat.unitOf("Dist"))
+        // 5 y 6: lo mismo con la distancia en mm.
+        assertTrue(LogFormat.isSupported(0x541F) && LogFormat.hasDist(0x541F) && !LogFormat.hasMillis(0x541F))
+        assertTrue(LogFormat.isSupported(0x600F) && LogFormat.hasDist(0x600F) && LogFormat.hasMillis(0x600F))
+        assertEquals(1.0, LogFormat.fields(0x5001).last().scale)
+        assertEquals(0.1, LogFormat.fields(0x3001).last().scale)
+        assertFalse(LogFormat.isSupported(0x7001))
         assertEquals("Distance (HC-SR04P ultrasonic)", LogFormat.channelDescription("Dist"))
     }
 }
