@@ -191,7 +191,20 @@ object WeightedEstimate {
         val pesos = tramos.map { 1.0 / max(it.varianzaDeLaMedia, 1e-12) }
         val sumaPesos = pesos.sum()
         val estimacion = tramos.indices.sumOf { pesos[it] * tramos[it].media } / sumaPesos
-        val errorEstandar = sqrt(1.0 / sumaPesos)
+
+        // SI LAS SESIONES NO CONCUERDAN, LA INCERTIDUMBRE TIENE QUE DECIRLO. 1/sumaPesos da
+        // por hecho que cada sesion acierta dentro de su propia incertidumbre. Es justo lo
+        // que una segunda visita viene a poner a prueba: otra geometria de satelites y otra
+        // atmosfera dejan un sesgo propio de cada dia, que dentro de una sesion no se ve. Dos
+        // sesiones de +-0,17 m cuyas medias distan 6 m daban +-0,12 m. El mismo contraste que
+        // dentro de cada sesion, un piso mas arriba: el chi-cuadrado reducido de las medias
+        // contra la estimacion, y si pasa de uno escala la varianza. Con dos sesiones iguales
+        // de buenas que discrepan, la incertidumbre queda en la mitad de lo que distan.
+        val desacuerdo = if (tramos.size < 2) 1.0 else max(1.0,
+            tramos.indices.sumOf {
+                pesos[it] * (tramos[it].media - estimacion).let { d -> d * d }
+            } / (tramos.size - 1))
+        val errorEstandar = sqrt(desacuerdo / sumaPesos)
 
         // --- 4. La dispersion, para ensenarla ------------------------------------------
         val w = idx.map { 1.0 / (sigmaDe(it) * sigmaDe(it)) }

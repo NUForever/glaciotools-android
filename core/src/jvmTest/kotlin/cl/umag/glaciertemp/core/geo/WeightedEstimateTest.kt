@@ -229,6 +229,48 @@ class WeightedEstimateTest {
         assertTrue(caso(1.0, 5.0) < 0.5)
     }
 
+    // ------------------------ el desacuerdo entre sesiones ------------------------
+
+    @Test
+    fun `dos visitas que no concuerdan no se promedian como si concordaran`() {
+        // Dos sesiones buenas, de 300 arreglos independientes con 3 m declarados y reales,
+        // pero con las medias separadas 6 m: el sesgo propio de cada dia, que es justo lo que
+        // una segunda visita viene a destapar. Cada una declara +-0,17 m, y combinadas daban
+        // +-0,12 m para dos medias que distan 6 m.
+        val n = 300
+        val a = serieCorrelada(n, 3.0, 0.0, 51)
+        val b = serieCorrelada(n, 3.0, 0.0, 52).map { it + 6.0 }
+        val juntas = WeightedEstimate.of(a + b, List(2 * n) { 3.0 }, List(n) { 0 } + List(n) { 1 })!!
+        assertEquals(2, juntas.sessions)
+        // La estimacion sigue siendo el punto medio, como antes.
+        assertEquals(3.0, juntas.estimate, 0.5)
+        // Y la incertidumbre cubre el desacuerdo: con dos sesiones iguales de buenas, la
+        // mitad de lo que distan.
+        assertEquals(3.0, juntas.standardError, 0.5)
+    }
+
+    @Test
+    fun `el sesgo de cada dia entra en la incertidumbre`() {
+        // Calibracion de lo que la ayuda de la app recomienda hacer: volver otro dia. Cada
+        // visita lleva un sesgo propio de 2 m (otra geometria, otra atmosfera). Antes la
+        // incertidumbre declarada era 5 veces menor que el error real.
+        val n = 200
+        fun visitas(k: Int, sesgo: Double): Triple<List<Double>, List<Double?>, List<Int>> {
+            val r = Random(5000 + k)
+            val v = (0 until 2).flatMap { j ->
+                val b = gauss(r) * sesgo
+                serieCorrelada(n, 3.0, 0.5, 6000 + 2 * k + j).map { it + b }
+            }
+            return Triple(v, List(2 * n) { 3.0 }, List(n) { 0 } + List(n) { 1 })
+        }
+        val conSesgo = calibracion(300) { visitas(it, 2.0) }
+        assertTrue(conSesgo in 0.75..1.25, "dos visitas con sesgo diario de 2 m: $conSesgo")
+        // Cuando las visitas SI concuerdan el contraste casi no actua: queda algo por debajo
+        // de uno, del lado prudente, y no pierde lo que la segunda visita aporta.
+        val sinSesgo = calibracion(300) { visitas(it, 0.0) }
+        assertTrue(sinSesgo in 0.6..1.1, "dos visitas que concuerdan: $sinSesgo")
+    }
+
     @Test
     fun `sin muestras no hay estimacion`() {
         assertNull(WeightedEstimate.of(emptyList(), emptyList(), emptyList()))
